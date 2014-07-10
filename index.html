@@ -1,0 +1,199 @@
+<html>
+<head>
+	<script src="https://rawgithub.com/mrdoob/three.js/master/build/three.js"></script>
+	<style>
+		html, body{
+			margin:0px;
+			padding:0px;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="c"></canvas>
+	<script>
+		var canvas = document.getElementById('c');
+		var ctx = canvas.getContext('2d');
+		canvas.width = 300;
+		canvas.height = 300;
+
+		var step = 1;
+		function rand(a,b){
+			return a+Math.random()*(b-a);
+		}
+
+		var updateNoise = function(noise){
+			noise.grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]]; 
+			  noise.p = [];
+			  for (var i=0; i<256; i++) {
+				  noise.p[i] = Math.floor(Math.random()*256);
+			  }
+			  // To remove the need for index wrapping, double the permutation table length 
+			  noise.perm = []; 
+			  for(var i=0; i<512; i++) {
+					noise.perm[i]=noise.p[i & 255];
+			  }
+		}
+
+		var ClassicalNoise = function(r) { // Classic Perlin noise in 3D, for comparison 
+		  this.r = 0;
+		  this.grad3 = [];
+		  this.p = [];
+		  this.perm = [];
+		  updateNoise(this);
+		  
+		};
+		ClassicalNoise.prototype.update = function(){
+			
+		}
+		 
+		ClassicalNoise.prototype.dot = function(g, x, y, z) { 
+		    return g[0]*x + g[1]*y + g[2]*z; 
+		};
+		 
+		ClassicalNoise.prototype.mix = function(a, b, t) { 
+		    return (1.0-t)*a + t*b; 
+		};
+		 
+		ClassicalNoise.prototype.fade = function(t) { 
+		    return t*t*t*(t*(t*6.0-15.0)+10.0); 
+		};
+		 
+		  // Classic Perlin noise, 3D version 
+		ClassicalNoise.prototype.noise = function(x, y, z) { 
+		  // Find unit grid cell containing point 
+		  var X = Math.floor(x); 
+		  var Y = Math.floor(y); 
+		  var Z = Math.floor(z); 
+		  
+		  // Get relative xyz coordinates of point within that cell 
+		  x = x - X; 
+		  y = y - Y; 
+		  z = z - Z; 
+		  
+		  // Wrap the integer cells at 255 (smaller integer period can be introduced here) 
+		  X = X & 255; 
+		  Y = Y & 255; 
+		  Z = Z & 255;
+		  
+		  // Calculate a set of eight hashed gradient indices 
+		  var gi000 = this.perm[X+this.perm[Y+this.perm[Z]]] % 12; 
+		  var gi001 = this.perm[X+this.perm[Y+this.perm[Z+1]]] % 12; 
+		  var gi010 = this.perm[X+this.perm[Y+1+this.perm[Z]]] % 12; 
+		  var gi011 = this.perm[X+this.perm[Y+1+this.perm[Z+1]]] % 12; 
+		  var gi100 = this.perm[X+1+this.perm[Y+this.perm[Z]]] % 12; 
+		  var gi101 = this.perm[X+1+this.perm[Y+this.perm[Z+1]]] % 12; 
+		  var gi110 = this.perm[X+1+this.perm[Y+1+this.perm[Z]]] % 12; 
+		  var gi111 = this.perm[X+1+this.perm[Y+1+this.perm[Z+1]]] % 12; 
+		  
+		  // The gradients of each corner are now: 
+		  // g000 = grad3[gi000]; 
+		  // g001 = grad3[gi001]; 
+		  // g010 = grad3[gi010]; 
+		  // g011 = grad3[gi011]; 
+		  // g100 = grad3[gi100]; 
+		  // g101 = grad3[gi101]; 
+		  // g110 = grad3[gi110]; 
+		  // g111 = grad3[gi111]; 
+		  // Calculate noise contributions from each of the eight corners 
+		  var n000= this.dot(this.grad3[gi000], x, y, z); 
+		  var n100= this.dot(this.grad3[gi100], x-1, y, z); 
+		  var n010= this.dot(this.grad3[gi010], x, y-1, z); 
+		  var n110= this.dot(this.grad3[gi110], x-1, y-1, z); 
+		  var n001= this.dot(this.grad3[gi001], x, y, z-1); 
+		  var n101= this.dot(this.grad3[gi101], x-1, y, z-1); 
+		  var n011= this.dot(this.grad3[gi011], x, y-1, z-1); 
+		  var n111= this.dot(this.grad3[gi111], x-1, y-1, z-1); 
+		  // Compute the fade curve value for each of x, y, z 
+		  var u = this.fade(x); 
+		  var v = this.fade(y); 
+		  var w = this.fade(z); 
+		   // Interpolate along x the contributions from each of the corners 
+		  var nx00 = this.mix(n000, n100, u); 
+		  var nx01 = this.mix(n001, n101, u); 
+		  var nx10 = this.mix(n010, n110, u); 
+		  var nx11 = this.mix(n011, n111, u); 
+		  // Interpolate the four results along y 
+		  var nxy0 = this.mix(nx00, nx10, v); 
+		  var nxy1 = this.mix(nx01, nx11, v); 
+		  // Interpolate the two last results along z 
+		  var nxyz = this.mix(nxy0, nxy1, w); 
+		 
+		  return nxyz; 
+		};
+
+		var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera( 75, 300 / 300, 0.1, 1000 );
+
+var renderer = new THREE.WebGLRenderer();
+renderer.setClearColor(0xffffff, 1);
+renderer.setSize( 300, 300 );
+document.body.appendChild( renderer.domElement );
+
+var geometry = new THREE.SphereGeometry(4,200,200);
+
+var texture = new THREE.Texture(canvas);
+
+
+var material = new THREE.MeshPhongMaterial( { map: texture} );
+
+var shader = THREE.ShaderLib[ "normalmap" ];
+	var uniforms = THREE.UniformsUtils.clone( shader.uniforms );
+
+	uniforms[ "enableDisplacement" ].value = true;
+	uniforms[ "enableDiffuse" ].value = true;
+	uniforms[ "tDisplacement" ].value = texture;
+	uniforms[ "tDiffuse" ].value = texture;
+	uniforms[ "uDisplacementScale" ].value = 2;
+
+	var parameters = { fragmentShader: shader.fragmentShader, vertexShader: shader.vertexShader, uniforms: uniforms, lights: true};
+	var material = new THREE.ShaderMaterial( parameters );
+
+var sphere = new THREE.Mesh( geometry, material );
+geometry.computeTangents();
+scene.add( sphere );
+
+
+var light = new THREE.PointLight( 0xffffff);
+light.position.set( 0, 0, 5 );
+var spot =  new THREE.SpotLight(0xff0000);
+spot.position.set( 0, 0, 5 );
+scene.add( light );
+scene.add( spot );
+
+camera.position.x = 10;
+camera.rotation.y=180/Math.PI+0.8;
+
+		var object = new ClassicalNoise();
+		function draw(){
+			window.requestAnimationFrame(draw);
+			texture.needsUpdate = true;
+			console.log('update');
+			ctx.clearRect(0,0,canvas.width,canvas.height);
+
+			var imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			var data = imagedata.data;
+			
+
+			step+=1;
+			updateNoise(ClassicalNoise);
+			var random = Math.floor(Math.random()*1000)
+
+			for(var y = 0; y < canvas.height; y++){
+				for(var x = 0; x < canvas.width; x++){
+					var index = (y * canvas.width + x) * 4;
+					var value = 255*object.noise(x/100,y/100,20*object.noise(x/500,y/500,step/100));
+					data[index] = 150+value;
+					data[++index] = value;
+					data[++index] = 50;
+					data[++index] = 255;
+					//ctx.putImageData(imageData, 0, 0);
+				}
+			}
+			ctx.putImageData(imagedata, 0, 0);
+			renderer.render(scene, camera);
+		}
+		draw();
+
+	</script>
+</body>
+</html>
